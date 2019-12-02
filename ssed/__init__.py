@@ -19,4 +19,10 @@ from .sbd import *
 __all__ += sbd.sbdSE_factory.__all__
 
 from .ellipse import *
-__all__ += ellipse.ellipseWF_factory.py.__all__
+__all__ += ellipse.ellipseWF_factory.__all__
+
+from .shearcasenet import *
+__all__ += shearcasenet.__all__
+
+from .sheardds import *
+__all__ += sheardds.__all__

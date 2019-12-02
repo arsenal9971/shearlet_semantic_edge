@@ -32,6 +32,8 @@ This work makes use of three different architectures, the first architecture use
 
 The other architectures, namely, ShearCASENet and ShearDDS, are able to perform semantic edge detection. This architectures use as the backbone the [CASENet](https://arxiv.org/abs/1705.09759) and [DDS](https://arxiv.org/abs/1804.02864), but they take as input the shearlet coefficients of the image and it does not make use of the buffer layer of the original architectures. 
 
+The implementation for the shearCASENet and shearDDS is based on the pytorch implemenation of the original CASENet architecture provided by [@lijiaman](https://github.com/lijiaman/CASENet).
+
 This method can be used for different applications in image processing and computer vision (e.g. edge/corner detection and tracking) as well as inverse problems regularization (e.g. Wavefront set reconstrucion in Computed Tomography).
 
 ### Citation
