@@ -1,5 +1,8 @@
 # Module that cointains the model for the shearDDS architecture
 
+# Based on @lijiaman pytorch implementation of the CASENet architecture (https://github.com/lijiaman/CASENet)
+
+
 # Import some libraries
 
 import torch.nn as nn
@@ -205,6 +208,7 @@ class ConcatLayer(nn.Module):
         concat_feats = torch.cat((input_data_list), dim=dim)
         return concat_feats
 
+
 class Bottleneck(nn.Module):
     expansion = 4
 
@@ -258,6 +262,20 @@ class Bottleneck(nn.Module):
         return out
 
 
+from torchvision.models import resnet
+
+class InfoConverter(nn.Module):
+
+    def __init__(self):
+        self.block = resnet.BasicBlock(64,1)
+        super(InfoConverter, self).__init__()
+
+    def forward(self, input_data):
+        return self.block(input_data)
+
+
+class
+
 class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=20):
@@ -296,6 +314,9 @@ class ResNet(nn.Module):
         self.crop_layer = CropLayer()
         self.slice_layer = SliceLayer()
         self.concat_layer = ConcatLayer()
+
+        # Define info converter
+        self.infoconverter = InfoConverter()
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -338,27 +359,31 @@ class ResNet(nn.Module):
     def forward(self, x, for_vis=False):
         x = self.conv1(x)
         x = self.bn_conv1(x)
-        x = self.relu(x) # BS X 64 X 352 X 352
-        score_feats1 = self.score_edge_side1(x) # BS X 1 X 352 X 352
+        x = self.relu(x)
+        x = self.infoconverter(x) # Converting info
+        score_feats1 = self.score_edge_side1(x)
 
-        x = self.maxpool(x) # BS X 64 X 175 X 175
+        x = self.maxpool(x)
 
-        x = self.res2(x) # BS X 256 X 175 X 175
-        score_feats2 = self.score_edge_side2(x) # BS X 1 X 352 X 352
+        x = self.res2(x)
+        x = self.infoconverter(x)
+        score_feats2 = self.score_edge_side2(x)
         upsampled_score_feats2 = self.upsample_edge_side2(score_feats2)
-        cropped_score_feats2 = upsampled_score_feats2 # Here don't need to crop. (In official caffe, there's crop)
+        cropped_score_feats2 = upsampled_score_feats2
 
-        x = self.res3(x) # BS X 512 X 88 X 88
-        score_feats3 = self.score_edge_side3(x) # BS X 1 X 356 X 356
+        x = self.res3(x)
+        x = self.infoconverter(x)
+        score_feats3 = self.score_edge_side3(x)
         upsampled_score_feats3 = self.upsample_edge_side3(score_feats3)
-        cropped_score_feats3 = self.crop_layer(upsampled_score_feats3, offset=2) # BS X 1 X 352 X 352
+        cropped_score_feats3 = self.crop_layer(upsampled_score_feats3, offset=2)
 
-        x = self.res4(x)
+        #x = self.res4(x) Deleting the buffer layer
         x = self.res5(x)
+        x = self.infoconverter(x)
         score_feats5 = self.score_cls_side5(x)
         upsampled_score_feats5 = self.upsample_cls_side5(score_feats5)
-        cropped_score_feats5 = self.crop_layer(upsampled_score_feats5, offset=4) # BS X 20 X 352 X 352. The output of it will be used to get a loss for this branch.
-        sliced_list = self.slice_layer(cropped_score_feats5) # Each element is BS X 1 X 352 X 352
+        cropped_score_feats5 = self.crop_layer(upsampled_score_feats5, offset=4)
+        sliced_list = self.slice_layer(cropped_score_feats5)
 
         # Add low-level feats to sliced_list
         final_sliced_list = []
@@ -383,7 +408,7 @@ def shearDDS_resnet101(pretrained=False, num_classes=20):
     """
     model = ResNet(Bottleneck, [3, 4, 23, 3], num_classes)
     if pretrained:
-        utils.load_official_pretrained_model(model, "../models/resnet101-5d3b4d8f.pth")
+        utils.load_official_pretrained_model(model, "../models/resnet101-shearDDS.pth")
     return model
 
 if __name__ == "__main__":
@@ -395,12 +420,17 @@ if __name__ == "__main__":
     load_npy_to_layer(model, layer_to_name_dict, npy_folder, loaded_model_path)
 
     npy_folder = "./init_model.npz"
-    loaded_model_path = "./Init_CASENet.pth.tar"
+    loaded_model_path = "./Init_shearDDS.pth.tar"
     layer_to_name_dict = gen_mapping_layer_name(model)
     load_npy_to_layer(model, layer_to_name_dict, npy_folder, loaded_model_path)
 
-    input_data = torch.rand(2, 3, 352, 352)
-    input_var = Variable(input_data)
+     # Example for setting input data as the shearlet coefficients
+    shearletsystem = shearlab.getshearletsystem2D(352,352, nScales = 4)
+    input_coeffs = np.rand.rand(2, 49, 352, 352)
+    input_data = np.rand.rand(2,352,352)
+    for i in range(2):
+        input_coeffs[i,:,:,:] = shearlab.sheardec2D(input_data[i,:,:]).transpose([0,3,1,2])
+    input_var = Variable(input_coeffs)
     output1, output2  = model(input_var)
     print("output1.size:{0}".format(output1.size()))
     print("output2.size:{0}".format(output2.size()))
